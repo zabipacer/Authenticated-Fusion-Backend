@@ -16,6 +16,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Profile from "./components/profile";
 import { useState } from "react";
 import { auth } from "./components/firebase";
+import DynamicTopicsForm from "./components/DynamicAddTopics";
 
 function App() {
   const [user, setUser] = useState();
@@ -37,8 +38,11 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<SignUp />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/edit-research/:Id" element={<DynamicTopicsForm />} />
+              <Route path="/add-research" element={<DynamicTopicsForm />} />
             </Routes>
             <ToastContainer />
+            
           </div>
         </div>
       </div>
