@@ -4,17 +4,12 @@ import { DB } from "./firebase";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useParams } from "react-router-dom";
 
-
-
 const DynamicTopicsForm = () => {
   const { Id } = useParams(); // Fetch the researchId from the URL params
   console.log(Id)
   const [researchTitle, setResearchTitle] = useState("");
   const [researchAbstract, setResearchAbstract] = useState("");
   const [topics, setTopics] = useState([   
-  
-       
-  
     {
       title: "",
       description: "",
@@ -30,28 +25,38 @@ const DynamicTopicsForm = () => {
   ]);
   const [researchCategory, setResearchCategory] = useState("");
   const [mainImage, setMainImage] = useState(null);
-     
-     
+      
   useEffect(() => {
     if (Id) {
-      
-      // Fetch existing research data when researchId is available
       const fetchData = async () => {
         const researchRef = ref(DB, `research/${Id}`);
-       
         const snapshot = await get(researchRef);
         if (snapshot.exists()) {
           const data = snapshot.val();
           setResearchTitle(data.title);
           setResearchAbstract(data.abstract);
           setTopics(data.topics || []);
-        } else {
-          alert("Research not found.");
+          setMainImage(data.mainImage || null); // Initialize main image
+          setResearchCategory(data.category || "");
         }
       };
       fetchData();
     }
   }, [Id]);
+
+  // Add new topic
+  const addTopic = () => {
+    setTopics([...topics, {
+      title: "",
+      description: "",
+      image: null,
+      subtopics: [{
+        subtopicTitle: "",
+        subtopicDescription: "",
+        subtopicImage: null,
+      }]
+    }]);
+  };
 
   const handleInputChange = (e, field) => {
     if (field === "title") setResearchTitle(e.target.value);
@@ -69,6 +74,7 @@ const DynamicTopicsForm = () => {
     updatedTopics[topicIndex].subtopics[subtopicIndex][field] = e.target.value;
     setTopics(updatedTopics);
   };
+
   const handleImageChange = (e, topicIndex, field) => {
     const file = e.target.files[0];
     if (topicIndex === 'mainImage') {
@@ -85,13 +91,34 @@ const DynamicTopicsForm = () => {
     updatedTopics[topicIndex].subtopics[subtopicIndex][field] = e.target.files[0];
     setTopics(updatedTopics);
   };
-  
 
-  const uploadImageToStorage = async (imageFile, folder) => {
-    const storage = getStorage();
-    const imageRef = storageRef(storage,`${folder}/${imageFile.name}`);
-    await uploadBytes(imageRef, imageFile);
-    return getDownloadURL(imageRef);
+  // Added: Modified upload function to check for null before uploading.
+  const uploadImageToImgBB = async (imageFile) => {
+    if (!imageFile) return null; // If no file is provided, return null.
+    const formData = new FormData();
+    formData.append("key", "1a556dc4fe6518bef395ddf23fd7b1af"); // Your ImgBB API key
+    formData.append("image", imageFile);
+  
+    try {
+      const response = await fetch("https://api.imgbb.com/1/upload", {
+        method: "POST",
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+  
+      const result = await response.json();
+      if (result.success) {
+        return result.data.url; // Return the uploaded image URL
+      } else {
+        throw new Error("ImgBB upload failed.");
+      }
+    } catch (error) {
+      console.error("Error uploading image to ImgBB:", error);
+      throw error;
+    }
   };
 
   const removeTopic = (index) => {
@@ -121,35 +148,36 @@ const DynamicTopicsForm = () => {
     e.preventDefault();
   
     try {
-      // Upload the main image if available
-      const mainImageURL = mainImage
+      // Handle main image (if new file, upload; otherwise, use the saved URL)
+      const mainImageURL = mainImage instanceof File 
         ? await uploadImageToImgBB(mainImage)
-        : null;
+        : mainImage;
   
       const formattedTopics = await Promise.all(
         topics.map(async (topic) => {
-          const topicImageURL = topic.image
+          // Handle topic image
+          const topicImageURL = topic.image instanceof File 
             ? await uploadImageToImgBB(topic.image)
-            : null;
+            : topic.image;
   
           const subtopics = await Promise.all(
             topic.subtopics.map(async (subtopic) => {
-              const subtopicImageURL = subtopic.subtopicImage
+              // Handle subtopic image
+              const subtopicImageURL = subtopic.subtopicImage instanceof File
                 ? await uploadImageToImgBB(subtopic.subtopicImage)
-                : null;
+                : subtopic.subtopicImage;
+  
               return {
-                subtopicTitle: subtopic.subtopicTitle,
-                subtopicDescription: subtopic.subtopicDescription,
-                subtopicImage: subtopicImageURL,
+                ...subtopic,
+                subtopicImage: subtopicImageURL
               };
             })
           );
   
           return {
-            title: topic.title,
-            description: topic.description,
+            ...topic,
             image: topicImageURL,
-            subtopics,
+            subtopics
           };
         })
       );
@@ -158,8 +186,8 @@ const DynamicTopicsForm = () => {
         title: researchTitle,
         abstract: researchAbstract,
         category: researchCategory,
-        mainImage: mainImageURL, // Include main image URL
-        topics: formattedTopics,
+        mainImage: mainImageURL,
+        topics: formattedTopics
       };
   
       if (Id) {
@@ -173,49 +201,19 @@ const DynamicTopicsForm = () => {
         await set(newResearchPath, formattedData);
         alert("New research created successfully!");
       }
-  
-      console.log("Submitted Data:", formattedData);
     } catch (error) {
       console.error("Error submitting data:", error);
       alert("Failed to submit data. Please try again.");
     }
   };
-   
-  const uploadImageToImgBB = async (imageFile) => {
-    const formData = new FormData();
-    formData.append("key", "1a556dc4fe6518bef395ddf23fd7b1af"); // Your ImgBB API key
-    formData.append("image", imageFile);
   
-    try {
-      const response = await fetch("https://api.imgbb.com/1/upload", {
-        method: "POST",
-        body: formData,
-      });
-  
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-  
-      const result = await response.json();
-      if (result.success) {
-        return result.data.url; // Return the uploaded image URL
-      } else {
-        throw new Error("ImgBB upload failed.");
-      }
-    } catch (error) {
-      console.error("Error uploading image to ImgBB:", error);
-      throw error;
-    }
-  };
-  
-
   return (
     <div className="p-8 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 min-h-screen flex justify-center items-center">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-4xl">
-      <h1 className="text-4xl font-extrabold text-emerald-800 mb-6 text-center">
-  {Id ?` Edit Research - ${researchTitle}` : 'Create New Research'}
-</h1>
-
+        <h1 className="text-4xl font-extrabold text-emerald-800 mb-6 text-center">
+          {Id ?` Edit Research - ${researchTitle}` : 'Create New Research'}
+        </h1>
+  
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="mb-4">
             <label className="block text-sm font-semibold text-emerald-700 mb-2">Research Title</label>
@@ -227,7 +225,7 @@ const DynamicTopicsForm = () => {
               placeholder="Enter research title"
             />
           </div>
-
+  
           <div className="mb-4">
             <label className="block text-sm font-semibold text-emerald-700 mb-2">Abstract</label>
             <textarea
@@ -237,35 +235,47 @@ const DynamicTopicsForm = () => {
               placeholder="Enter research abstract"
             />
           </div>
-
+  
           <div className="mb-4">
-  <label className="block text-sm font-semibold text-emerald-700 mb-2">Category</label>
-  <select
-    className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-    value={researchCategory}
-    onChange={(e) => setResearchCategory(e.target.value)}
-  >
-    <option value="" disabled>Select a category</option>
-    <option value="Life Sciences">Life Sciences</option>
-    <option value="Chemistry">Chemistry</option>
-    <option value="Environmental Sciences">Environmental Sciences</option>
-    <option value="Engineering">Engineering</option>
-    <option value="Physics">Physics</option>
-  </select>
-</div>
-
+            <label className="block text-sm font-semibold text-emerald-700 mb-2">Category</label>
+            <select
+              className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              value={researchCategory}
+              onChange={(e) => setResearchCategory(e.target.value)}
+            >
+              <option value="" disabled>Select a category</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Medical Sciences">Medical Sciences</option>
+              <option value="Earth Sciences">Earth Sciences</option>
+              <option value="Social Sciences">Social Sciences</option>
+              <option value="Others">Others</option>
+            </select>
+          </div>
+  
           <div className="mb-4">
-  <label className="block text-sm font-semibold text-emerald-700 mb-2">Main Image</label>
-  <input
-    type="file"
-    className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-    onChange={(e) => handleImageChange(e, 'mainImage')}
-  />
-</div>
-
-
-
-
+            <label className="block text-sm font-semibold text-emerald-700 mb-2">Main Image</label>
+            <input
+              type="file"
+              className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              onChange={(e) => handleImageChange(e, 'mainImage')}
+            />
+            {/* Added: Main image preview */}
+            {mainImage && typeof mainImage === 'string' && (
+              <img
+                src={mainImage}
+                alt="Current Main"
+                className="w-32 h-32 object-cover mt-2"
+              />
+            )}
+            {mainImage && mainImage instanceof File && (
+              <img
+                src={URL.createObjectURL(mainImage)}
+                alt="New Main Preview"
+                className="w-32 h-32 object-cover mt-2"
+              />
+            )}
+          </div>
+  
           {topics.map((topic, topicIndex) => (
             <div key={topicIndex} className="bg-emerald-50 p-6 rounded-lg shadow-md mb-6 border-t-4 border-emerald-500">
               <div className="flex justify-between items-center mb-4">
@@ -278,9 +288,7 @@ const DynamicTopicsForm = () => {
                   Remove Topic
                 </button>
               </div>
-              
-
-
+  
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-emerald-700 mb-2">Title</label>
                 <input
@@ -300,7 +308,7 @@ const DynamicTopicsForm = () => {
                   placeholder="Enter topic description"
                 />
               </div>
-
+  
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-emerald-700 mb-2">Upload Image</label>
                 <input
@@ -308,8 +316,23 @@ const DynamicTopicsForm = () => {
                   className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   onChange={(e) => handleImageChange(e, topicIndex, "image")}
                 />
+                {/* Added: Topic image preview */}
+                {topic.image && typeof topic.image === 'string' && (
+                  <img
+                    src={topic.image}
+                    alt={`Topic ${topicIndex} Preview`}
+                    className="w-32 h-32 object-cover mt-2"
+                  />
+                )}
+                {topic.image && topic.image instanceof File && (
+                  <img
+                    src={URL.createObjectURL(topic.image)}
+                    alt={`Topic ${topicIndex} New Preview`}
+                    className="w-32 h-32 object-cover mt-2"
+                  />
+                )}
               </div>
-
+  
               <div className="mb-6">
                 <h4 className="text-lg font-semibold text-emerald-700">Subtopics</h4>
                 {topic.subtopics.map((subtopic, subtopicIndex) => (
@@ -324,7 +347,7 @@ const DynamicTopicsForm = () => {
                         Remove Subtopic
                       </button>
                     </div>
-
+  
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-emerald-700 mb-2">Subtopic Title</label>
                       <input
@@ -335,7 +358,7 @@ const DynamicTopicsForm = () => {
                         placeholder="Enter subtopic title"
                       />
                     </div>
-
+  
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-emerald-700 mb-2">Subtopic Description</label>
                       <textarea
@@ -345,7 +368,7 @@ const DynamicTopicsForm = () => {
                         placeholder="Enter subtopic description"
                       />
                     </div>
-
+  
                     <div className="mb-4">
                       <label className="block text-sm font-semibold text-emerald-700 mb-2">Subtopic Image</label>
                       <input
@@ -353,6 +376,21 @@ const DynamicTopicsForm = () => {
                         className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                         onChange={(e) => handleSubtopicImageChange(e, topicIndex, subtopicIndex, "subtopicImage")}
                       />
+                      {/* Added: Subtopic image preview */}
+                      {subtopic.subtopicImage && typeof subtopic.subtopicImage === 'string' && (
+                        <img
+                          src={subtopic.subtopicImage}
+                          alt={`Subtopic ${subtopicIndex} Preview`}
+                          className="w-32 h-32 object-cover mt-2"
+                        />
+                      )}
+                      {subtopic.subtopicImage && subtopic.subtopicImage instanceof File && (
+                        <img
+                          src={URL.createObjectURL(subtopic.subtopicImage)}
+                          alt={`Subtopic ${subtopicIndex} New Preview`}
+                          className="w-32 h-32 object-cover mt-2"
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -366,18 +404,25 @@ const DynamicTopicsForm = () => {
               </div>
             </div>
           ))}
-
-<button
-  type="submit"
-  className="w-full p-4 bg-emerald-700 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-600"
->
-  {Id ? 'Update Research' : 'Create Research'}
-
-</button>
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={addTopic}
+              className="p-2 bg-emerald-500 text-white rounded hover:bg-emerald-600"
+            >
+              Add New Topic
+            </button>
+          </div>
+          <button
+            type="submit"
+            className="w-full p-4 bg-emerald-700 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-600"
+          >
+            {Id ? 'Update Research' : 'Create Research'}
+          </button>
         </form>
       </div>
     </div>
   );
 };
-
+  
 export default DynamicTopicsForm;
