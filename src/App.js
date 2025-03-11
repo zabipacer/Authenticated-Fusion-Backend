@@ -17,6 +17,9 @@ import Profile from "./components/profile";
 import { useState } from "react";
 import { auth } from "./components/firebase";
 import DynamicTopicsForm from "./components/DynamicAddTopics";
+import Dashboard from "./components/Dashboard";
+import DashboardPage from "./components/DashboardPage";
+import AdminSubmissionManager from "./components/AdminSubmissionManager";
 
 function App() {
   const [user, setUser] = useState();
@@ -40,6 +43,10 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/edit-research/:Id" element={<DynamicTopicsForm />} />
               <Route path="/add-research" element={<DynamicTopicsForm />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/admin-submission-manager" element={<AdminSubmissionManager />} />
+              
+                          
             </Routes>
             <ToastContainer />
             

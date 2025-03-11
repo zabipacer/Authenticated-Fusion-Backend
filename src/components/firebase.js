@@ -1,19 +1,10 @@
-// Import the functions you need from the SDKs you need
+// src/config/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore/lite";
-
+// Import Firestore from the full SDK, not firestore/lite.
+import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 
-
-
-
-
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCtbKEWyKIcWsBpdnaeGwj0Rz080U7vRUg",
   authDomain: "fusion-journal-of-engg-and-sci.firebaseapp.com",
@@ -21,14 +12,12 @@ const firebaseConfig = {
   storageBucket: "fusion-journal-of-engg-and-sci.firebasestorage.app",
   messagingSenderId: "227752215255",
   appId: "1:227752215255:web:842fb3c6f5a234122ee692",
-  measurementId: "G-3ZRXVJX9RL"
+  measurementId: "G-3ZRXVJX9RL",
 };
-
-
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth=getAuth();
-export const db=getFirestore(app);
-export const DB=getDatabase(app)
-export default app
+export const auth = getAuth(app);
+export const db = getFirestore(app); // Firestore instance (full SDK)
+export const DB = getDatabase(app);    // Realtime Database (if needed)
+export default app;
