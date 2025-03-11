@@ -44,9 +44,12 @@ const DashboardPage = () => {
   }, []);
 
   // Filter research based on search term (by title)
-  const filteredResearch = researchList.filter((item) =>
-    item.title?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredResearch = researchList.filter((item) => {
+    // Ensure that item.title is a string and trim both sides
+    const title = (item.title || "").toLowerCase().trim();
+    const search = searchTerm.toLowerCase().trim();
+    return title.includes(search);
+  });
 
   // Limit display to 6 items
   const displayedResearch = filteredResearch.slice(0, 6);
