@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { ref, get, set, push } from "firebase/database";
-import { DB } from "./firebase";
+
 import {
   getStorage,
   ref as storageRef,
@@ -17,9 +17,10 @@ import {
   FiPlusCircle,
   FiLoader,
 } from "react-icons/fi";
+import { DB ,storage } from "./firebase";
 
 const DynamicTopicsForm = () => {
-  // Rename URL param for clarity
+  // Grab researchId from URL if editing; otherwise undefined for new research
   const { Id: researchId } = useParams();
   console.log("Research ID:", researchId);
 
@@ -45,7 +46,6 @@ const DynamicTopicsForm = () => {
       ],
     },
   ]);
-  // New state for submission loading
   const [submitting, setSubmitting] = useState(false);
 
   // ----------------------
@@ -205,7 +205,6 @@ const DynamicTopicsForm = () => {
   // ----------------------
   // Upload Functions
   // ----------------------
-  // Upload an image file to ImgBB and return its URL.
   const uploadImageToImgBB = async (imageFile) => {
     if (!imageFile) return null;
     const formData = new FormData();
@@ -238,10 +237,10 @@ const DynamicTopicsForm = () => {
   };
 
   // Upload a PDF file to Firebase Storage and return its URL.
-  const uploadPDFToStorage = async (pdfFile) => {
+  // We include the researchKey in the storage path to tie the file to this research.
+  const uploadPDFToStorage = async (pdfFile, researchKey) => {
     if (!pdfFile) return null;
-    const storage = getStorage();
-    const pdfReference = storageRef(storage, `researchPDFs/${pdfFile.name}-${Date.now()}`);
+    const pdfReference = storageRef(storage, `researchPDFs/${researchKey}/${pdfFile.name}-${Date.now()}`);
     try {
       await uploadBytes(pdfReference, pdfFile);
       return await getDownloadURL(pdfReference);
@@ -264,13 +263,20 @@ const DynamicTopicsForm = () => {
     setSubmitting(true);
 
     try {
-      // Upload main image if a new file is provided.
+      // Determine research key: if editing, use researchId; otherwise generate a new key.
+      let researchKey = researchId;
+      if (!researchKey) {
+        const researchRef = ref(DB, "research");
+        researchKey = push(researchRef).key;
+      }
+
+      // Upload main image if provided.
       const mainImageURL =
         mainImage instanceof File ? await uploadImageToImgBB(mainImage) : (mainImage ?? null);
 
-      // Upload PDF if provided.
+      // Upload PDF if provided, using the researchKey in the storage path.
       const researchPDFURL =
-        researchPDF instanceof File ? await uploadPDFToStorage(researchPDF) : (researchPDF ?? null);
+        researchPDF instanceof File ? await uploadPDFToStorage(researchPDF, researchKey) : (researchPDF ?? null);
 
       // Process topics and subtopics concurrently.
       const formattedTopics = await Promise.all(
@@ -306,9 +312,12 @@ const DynamicTopicsForm = () => {
         mainImage: mainImageURL,
         pdf: researchPDFURL,
         topics: formattedTopics,
+        // Optionally add a field to tie the research to the user or researchKey
+        researchKey,
+        updatedAt: new Date().toISOString(),
       };
 
-      // Update existing research if researchId exists; otherwise, create new.
+      // If researchId exists, update; otherwise, create new.
       if (researchId) {
         const researchRef = ref(DB, `research/${researchId}`);
         await set(researchRef, formattedData);
@@ -319,8 +328,7 @@ const DynamicTopicsForm = () => {
         );
       } else {
         const newResearchRef = ref(DB, "research");
-        const newResearchKey = push(newResearchRef).key;
-        const newResearchPath = ref(DB, `research/${newResearchKey}`);
+        const newResearchPath = ref(DB, `research/${researchKey}`);
         await set(newResearchPath, formattedData);
         toast.success(
           <span>
@@ -335,7 +343,6 @@ const DynamicTopicsForm = () => {
           <FiAlertCircle className="inline mr-1" /> Failed to submit data. Please try again.
         </span>
       );
-      // Rethrow the error so that it is not silently swallowed.
       throw error;
     } finally {
       setSubmitting(false);
@@ -437,7 +444,6 @@ const DynamicTopicsForm = () => {
               className="w-full p-2 rounded-lg border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               onChange={(e) => handleImageChange(e, "mainImage")}
             />
-            {/* Main Image Preview */}
             {mainImage && typeof mainImage === "string" && (
               <img
                 src={mainImage}

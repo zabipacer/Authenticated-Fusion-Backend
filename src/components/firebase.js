@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 // Import Firestore from the full SDK, not firestore/lite.
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCtbKEWyKIcWsBpdnaeGwj0Rz080U7vRUg",
@@ -20,4 +21,5 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app); // Firestore instance (full SDK)
 export const DB = getDatabase(app);    // Realtime Database (if needed)
+export const storage = getStorage(app);    // Realtime Database (if needed)
 export default app;
